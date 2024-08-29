@@ -1,0 +1,32 @@
+var jStatusFighting = 0;
+
+var jHealth = 0;
+var jEnergy = 0;
+
+jmcIncomingFunctions.push(function() {
+	var plainStr = jmc.ToText(jmc.Event);
+	
+	setFightingState(plainStr);
+	setHealthAndEnergy(plainStr);
+});
+
+function setFightingState(str) {
+	if (str.search(/\[(.+):(.+)\]/) >= 0) {
+		jStatusFighting = 1;
+	}
+
+	if ((str.search(/^([-0-9]+)ж ([-0-9]+)б ([-0-9]+)о ([-0-9]+)м Выходы:.*>$/) > 0) ||
+		(str.search(/^([-0-9]+)ж ([-0-9]+)б ([-0-9]+)о ([-0-9]+)м Зап:[0-9]+ Выходы:.*>$/) > 0) ||
+		(str.search(/^([-0-9]+)ж ([-0-9]+)б ([-0-9]+)о ([-0-9]+)м Зап:[0-9]+>$/) > 0) ||
+		(str.search(/^([-0-9]+)ж ([-0-9]+)б ([-0-9]+)о ([-0-9]+)м>$/) > 0)) {
+			jStatusFighting = 0;
+		}
+}
+
+function setHealthAndEnergy(str) {
+	var result = str.match(/^([-0-9]+)ж ([-0-9]+)б ([-0-9]+)о ([-0-9]+)м/);
+	if (result != null) {
+		jHealth = result[1];
+		jEnergy = result[2];
+	}
+}

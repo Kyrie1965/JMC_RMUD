@@ -1,0 +1,402 @@
+/***
+Скрипт отображения полной экипировки (с отсутствующими слотами) и суммарного влияния в экипировке.
+Версия 1.1.
+
+Зависимость: commonlib.scr с обвязкой обработчиков, items.scr.
+
+Файл equipment.scr необходимо скопировать в папку [JMC]\settings.
+
+Добавить в свой конфигурационный файл JMC:
+#use {equipment.scr}
+***/
+
+if (typeof module_commonlib === "undefined") {
+	jmc.Showme("[EQUIPMENT.SCR] Отсутствует commonlib.scr с обвязкой обработчиков.", "light red");
+	throw new Error("[EQUIPMENT.SCR] Отсутствует commonlib.scr с обвязкой обработчиков.");
+}
+
+if (typeof module_items === "undefined") {
+	jmc.Showme("[EQUIPMENT.SCR] Отсутствует модуль items.scr.", "light red");
+	throw new Error("[EQUIPMENT.SCR] Отсутствует модуль items.scr.");
+}
+
+var equipment_processing = false;
+var equipment_STRENGTH = 0;
+var equipment_DEXTERITY = 0;
+var equipment_CONSTITUTION = 0;
+var equipment_INTELLIGENCE = 0;
+var equipment_WISDOM = 0;
+var equipment_ABSORB = 0;
+var equipment_HARM = 0;
+var equipment_SIZE = 0;
+var equipment_DEFENSE = 0;
+var equipment_ATTACK = 0;
+var equipment_ARMOR = 0;
+var equipment_dict = {};
+var equipment_textBuffer = [];
+var equipment_somethingWrong = false;
+
+jmcIncomingFunctions.push(function() {
+	var str = jmc.Event;
+	var plainStr = jmc.ToText(jmc.Event);
+	
+	if (!equipment_processing) {
+		if ((plainStr.search(/У Вас в экипировке:/) == 0) || (plainStr.search(/[а-яА-ЯёЁ]+ использует:/) == 0)) {
+			equipment_processing = true;
+			equipment_somethingWrong = false
+			equipment_STRENGTH = 0;
+			equipment_DEXTERITY = 0;
+			equipment_CONSTITUTION = 0;
+			equipment_INTELLIGENCE = 0;
+			equipment_WISDOM = 0;
+			equipment_ABSORB = 0;
+			equipment_HARM = 0;
+			equipment_SIZE = 0;
+			equipment_DEFENSE = 0;
+			equipment_ATTACK = 0;
+			equipment_ARMOR = 0;
+			equipment_initdict();
+			equipment_textBuffer = [];
+		}
+		
+		return;
+	}
+
+	var result = plainStr.match(/<(.+)> +(.+) *\(*/);
+	if (result == null) {
+		equipment_processing = false;
+		
+		if (equipment_somethingWrong) {
+			jmc.Showme(equipment_textBuffer.join("\n"));
+		} else {
+			if (equipment_dict["на пальце 1"].length == 0) {
+				jmc.Showme("<на пальце>    \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на пальце 1"]);
+			}
+
+			if (equipment_dict["на пальце 2"].length == 0) {
+				jmc.Showme("<на пальце>    \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на пальце 2"]);
+			}
+
+			if (equipment_dict["на шее"].length == 0) {
+				jmc.Showme("<на шее>       \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на шее"]);
+			}
+
+			if (equipment_dict["вокруг шеи"].length == 0) {
+				jmc.Showme("<вокруг шеи>   \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["вокруг шеи"]);
+			}
+			
+			if (equipment_dict["на теле"].length == 0) {
+				jmc.Showme("<на теле>      \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на теле"]);
+			}
+
+			if (equipment_dict["на голове"].length == 0) {
+				jmc.Showme("<на голове>    \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на голове"]);
+			}		
+
+			if (equipment_dict["на лице"].length == 0) {
+				jmc.Showme("<на лице>      \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на лице"]);
+			}	
+
+			if (equipment_dict["на ногах"].length == 0) {
+				jmc.Showme("<на ногах>     \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на ногах"]);
+			}
+
+			if (equipment_dict["как обувь"].length == 0) {
+				jmc.Showme("<как обувь>    \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["как обувь"]);
+			}
+
+			if (equipment_dict["на кистях"].length == 0) {
+				jmc.Showme("<на кистях>    \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на кистях"]);
+			}
+
+			if (equipment_dict["на руках"].length == 0) {
+				jmc.Showme("<на руках>     \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на руках"]);
+			}
+
+			if (equipment_dict["вокруг тела"].length == 0) {
+				jmc.Showme("<вокруг тела>  \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["вокруг тела"]);
+			}
+
+			if (equipment_dict["за спиной"].length == 0) {
+				jmc.Showme("<за спиной>    \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["за спиной"]);
+			}
+
+			if (equipment_dict["вокруг пояса"].length == 0) {
+				jmc.Showme("<вокруг пояса> \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["вокруг пояса"]);
+			}
+
+			if (equipment_dict["на запястье 1"].length == 0) {
+				jmc.Showme("<на запястье>  \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на запястье 1"]);
+			}
+
+			if (equipment_dict["на запястье 2"].length == 0) {
+				jmc.Showme("<на запястье>  \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["на запястье 2"]);
+			}
+
+			if (equipment_dict["в ушах"].length == 0) {
+				jmc.Showme("<в ушах>       \x1B[0;33mпусто\x1B[0;0m");
+			} else {
+				jmc.Showme(equipment_dict["в ушах"]);
+			}
+			
+			jmc.Showme("");
+			
+			if (equipment_dict["в руках"].length != 0) {
+				jmc.Showme(equipment_dict["в руках"]);
+			} else if (equipment_dict["свет"].length != 0) {
+				if (equipment_dict["оружие"].length == 0) {
+					jmc.Showme("<оружие>       \x1B[0;33mпусто\x1B[0;0m");
+				} else {
+					jmc.Showme(equipment_dict["оружие"]);
+				}
+
+				if (equipment_dict["щит"].length == 0) {
+					jmc.Showme("<щит>          \x1B[0;33mпусто\x1B[0;0m");
+				} else {
+					jmc.Showme(equipment_dict["щит"]);
+				}
+
+				if (equipment_dict["свет"].length == 0) {
+					jmc.Showme("<свет>         \x1B[0;33mпусто\x1B[0;0m");
+				} else {
+					jmc.Showme(equipment_dict["свет"]);
+				}
+			} else {
+				if (equipment_dict["оружие"].length == 0) {
+					jmc.Showme("<оружие>       \x1B[0;33mпусто\x1B[0;0m");
+				} else {
+					jmc.Showme(equipment_dict["оружие"]);
+				}
+
+				if (equipment_dict["в руке"].length == 0) {
+					jmc.Showme("<в руке>       \x1B[0;33mпусто\x1B[0;0m");
+				} else {
+					jmc.Showme(equipment_dict["в руке"]);
+				}
+
+				if (equipment_dict["щит"].length == 0) {
+					jmc.Showme("<щит>          \x1B[0;33mпусто\x1B[0;0m");
+				} else {
+					jmc.Showme(equipment_dict["щит"]);
+				}
+			}
+		}
+				
+		jmc.Showme("");
+		jmc.Showme("Влияния экипировки:");
+		jmc.Showme("Сила: " + equipment_STRENGTH + ", " + "Ловкость: " + equipment_DEXTERITY + ", " + "Телосложение: " + equipment_CONSTITUTION + ", " + "Разум: " + equipment_INTELLIGENCE + ", " + "Мудрость: " + equipment_WISDOM + ", " + "Поглощение: " + equipment_ABSORB + ", " + "Вред: " + equipment_HARM + ", " + "Размер: " + equipment_SIZE + ", " + "Защита: " + equipment_DEFENSE + ", " + "Атака: " + equipment_ATTACK + ", " + "Броня: " + equipment_ARMOR);
+		return;
+	}
+	
+	if (equipment_processing) jmc.DropEvent();
+	
+	equipment_textBuffer.push(str);
+	
+	var item = (result[2].split(" (")[0]).toUpperCase();
+
+	if (result[1] == "на пальце") {
+		if (equipment_dict["на пальце 1"].length == 0) {
+			equipment_dict["на пальце 1"] = str;
+		} else {
+			equipment_dict["на пальце 2"] = str;
+		}
+	} else if (result[1] == "на шее") {
+		equipment_dict["на шее"] = str;
+	} else if (result[1] == "вокруг шеи") {
+		equipment_dict["вокруг шеи"] = str;
+	} else if (result[1] == "на теле") {
+		equipment_dict["на теле"] = str;
+	} else if (result[1] == "на голове") {
+		equipment_dict["на голове"] = str;
+	} else if (result[1] == "на лице") {
+		equipment_dict["на лице"] = str;
+	} else if (result[1] == "на ногах") {
+		equipment_dict["на ногах"] = str;
+	} else if (result[1] == "как обувь") {
+		equipment_dict["как обувь"] = str;
+	} else if (result[1] == "на кистях") {
+		equipment_dict["на кистях"] = str;
+	} else if (result[1] == "на руках") {
+		equipment_dict["на руках"] = str;
+	} else if (result[1] == "вокруг тела") {
+		equipment_dict["вокруг тела"] = str;
+	} else if (result[1] == "за спиной") {
+		equipment_dict["за спиной"] = str;
+	} else if (result[1] == "вокруг пояса") {
+		equipment_dict["вокруг пояса"] = str;
+	} else if (result[1] == "на запястье") {
+		if (equipment_dict["на запястье 1"].length == 0) {
+			equipment_dict["на запястье 1"] = str;
+		} else {
+			equipment_dict["на запястье 2"] = str;
+		}
+	} else if (result[1] == "в ушах") {
+		equipment_dict["в ушах"] = str;
+	} else if (result[1] == "оружие") {
+		equipment_dict["оружие"] = str;
+	} else if (result[1] == "в руке") {
+		equipment_dict["в руке"] = str;
+	} else if (result[1] == "в руках") {
+		equipment_dict["в руках"] = str;
+	} else if (result[1] == "щит") {
+		equipment_dict["щит"] = str;
+	} else if (result[1] == "свет") {
+		equipment_dict["свет"] = str;
+	} else {
+		equipment_somethingWrong = true;
+	}
+		
+	if (items_items_dict[item] == null) {
+		return;
+	}
+	
+	var regex = new RegExp("СИЛА на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_STRENGTH = equipment_STRENGTH + parseInt(result[1])
+	}
+
+	regex = new RegExp("ЛОВКОСТЬ на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_DEXTERITY = equipment_DEXTERITY + parseInt(result[1])
+	}
+
+	regex = new RegExp("ТЕЛОСЛОЖЕНИЕ на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_CONSTITUTION = equipment_CONSTITUTION + parseInt(result[1])
+	}
+
+	regex = new RegExp("РАЗУМ на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_INTELLIGENCE = equipment_INTELLIGENCE + parseInt(result[1])
+	}
+
+	regex = new RegExp("МУДРОСТЬ на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_WISDOM = equipment_WISDOM + parseInt(result[1])
+	}
+
+	regex = new RegExp("ПОГЛОЩЕНИЕ на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_ABSORB = equipment_ABSORB + parseInt(result[1])
+	}
+
+	regex = new RegExp("ВРЕД на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_HARM = equipment_HARM + parseInt(result[1])
+	}
+	
+	regex = new RegExp("РАЗМЕР на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_SIZE = equipment_SIZE + parseInt(result[1])
+	}
+	
+	regex = new RegExp("ЗАЩИТА на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_DEFENSE = equipment_DEFENSE + parseInt(result[1])
+	}
+	
+	regex = new RegExp("АТАКА на ([-0-9]+)", "i");
+	result = items_items_dict[item]["effects"].match(regex);
+	if (result != null) {
+		equipment_ATTACK = equipment_ATTACK + parseInt(result[1])
+	}
+
+	equipment_ARMOR = equipment_ARMOR + items_items_dict[item]["armor"];
+});
+
+function equipment_initdict() {
+	equipment_dict = {};
+	equipment_dict["на пальце 1"] = "";
+	equipment_dict["на пальце 2"] = "";
+	equipment_dict["на шее"] = "";
+	equipment_dict["вокруг шеи"] = "";
+	equipment_dict["на теле"] = "";
+	equipment_dict["на голове"] = "";
+	equipment_dict["на лице"] = "";
+	equipment_dict["на ногах"] = "";
+	equipment_dict["как обувь"] = "";
+	equipment_dict["на кистях"] = "";
+	equipment_dict["на руках"] = "";
+	equipment_dict["вокруг тела"] = "";
+	equipment_dict["за спиной"] = "";
+	equipment_dict["вокруг пояса"] = "";
+	equipment_dict["на запястье 1"] = "";
+	equipment_dict["на запястье 2"] = "";
+	equipment_dict["в ушах"] = "";
+	equipment_dict["оружие"] = "";
+	equipment_dict["в руке"] = "";
+	equipment_dict["в руках"] = "";
+	equipment_dict["щит"] = "";
+	equipment_dict["свет"] = "";
+	
+/*
+<на пальце>    треснувшее кольцо (голубая аура)
+<на пальце>    темное кольцо (голубая аура)
+<на шее>       медальон гвардейца черного барона (голубая аура)
+<вокруг шеи>   воротник профессионального наемника
+<на теле>      звездная роба (светлая аура) (голубая аура)
+<на голове>    черная тиара (голубая аура)
+<на лице>      серый шарф (голубая аура)
+<на ногах>     черные булатные поножи (голубая аура)
+<как обувь>    сапоги профессионального наемника
+<на кистях>    мифриловые латные рукавицы (светлая аура) (голубая аура)
+<на руках>     черные булатные наручи (голубая аура)
+<вокруг тела>  белая мантия (голубая аура) (мягко светится)
+<за спиной>    плетеная сумка (голубая аура)
+<вокруг пояса> кольчужная набедренная повязка
+<на запястье>  браслет с листьями (голубая аура)
+<на запястье>  браслет истинного света (голубая аура)
+<в ушах>       сережки с жемчужинами (голубая аура) (мягко светится)
+
+(1.1)<оружие>       скипетр главы совета
+(1.2)<в руке>       фолиант с мерцающим узором (мягко светится)
+(1.3)<щит>          серый светящийся щит (голубая аура) (мягко светится) (тихо шумит)
+
+(2)<в руках>      лук с поющими стрелами (светлая аура) (голубая аура) (тихо шумит)
+
+(3.1)<оружие>       скипетр главы совета
+(3.2)<свет>         мифриловый посох (голубая аура) (мягко светится)
+(3.3)<щит>          серый светящийся щит (голубая аура) (мягко светится) (тихо шумит)
+*/
+}

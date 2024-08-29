@@ -1,0 +1,54 @@
+/*
+Основной файл скриптов с автоматической загрузкой.
+
+В этом файле не нужно ничего менять. Для обработки событий создавайте свои собственные файлы scr на базе примера sample.scr.
+
+Подключайте свои скрипты командой в JMC (можете добавить в свой файл конфигурации):
+#use {sample.scr}
+*/
+
+var module_commonlib = 1;
+
+//Проверка корректной работы JScript в JMC: #script testJS()
+function testJS() {
+	jmc.Showme("JScript работает!", "light cyan");
+}
+
+jmc.RegisterHandler("Incoming", "OnIncoming()"); 
+jmc.RegisterHandler("Input", "OnInput()"); 
+jmc.RegisterHandler("Load", "OnLoad()"); 
+jmc.RegisterHandler("Unload", "OnUnload()"); 
+
+var jmcInputFunctions = [];
+var jmcIncomingFunctions = [];
+var jmcLoadFunctions = [];
+var jmcUnloadFunctions = [];
+
+function OnLoad() {
+	for (var i = 0; i < jmcLoadFunctions.length; i++) {
+		jmcLoadFunctions[i]();
+	}
+}
+
+function OnUnload() {
+	for (var i = 0; i < jmcUnloadFunctions.length; i++) {
+		jmcUnloadFunctions[i]();
+	}
+}
+
+function OnIncoming() {
+	for (var i = 0; i < jmcIncomingFunctions.length; i++) {
+		jmcIncomingFunctions[i]();
+	}
+}
+
+function OnInput() {
+	for (var i = 0; i < jmcInputFunctions.length; i++) {
+		jmcInputFunctions[i]();
+	}
+}
+
+String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.split(search).join(replacement);
+};

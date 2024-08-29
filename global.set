@@ -1,0 +1,28 @@
+#alias {вода} {#variable water %1} {default}
+#alias {еда} {#variable food %1} {default}
+#alias {лор} {#script lore_lore("%0")} {default}
+#alias {тюк} {#variable container %1} {default}
+#action TEXT {Special thanks to Alex Kuklin for hosting our MUD!} {#cr} {5} {default}
+#action TEXT {^Please choose a MUD client:} {3} {5} {default}
+#action TEXT {^Начался дождь.} {#tickset} {5} {default}
+#action TEXT {^Дождь прекратился.} {#tickset} {5} {default}
+#action TEXT {^Начался день.} {#tickset} {5} {default}
+#action TEXT {^Началась ночь.} {#tickset} {5} {default}
+#action TEXT {^Солнце взошло на востоке.} {#tickset} {5} {default}
+#action TEXT {^Солнце зашло на западе.} {#tickset} {5} {default}
+#action TEXT {^Окончив молитвы, %1 закрыл%2 свой молитвенник с улыбкой.} {#tickset} {5} {default}
+#action TEXT {^Окончив занятия, %1 закрыл%2 свою книгу заклинаний с улыбкой.} {#tickset} {5} {default}
+#action TEXT {^В небе начали мелькать молнии.} {#tickset} {5} {default}
+#action TEXT {^%1 молний прекратилось.} {#tickset} {5} {default}
+#action TEXT {^Облака исчезли.} {#tickset} {5} {default}
+#action TEXT {^Белый диск Солинари появился на небе.} {#tickset} {5} {default}
+#action TEXT {^Во рту у Вас пересохло.} {#tickset} {5} {default}
+#action TEXT {^Пришла пора подкрепиться.} {#tickset} {5} {default}
+#action TEXT {^Вы почувствовали себя слабее.} {#tickset} {5} {default}
+#action TEXT {^Вы почувствовали себя неуклюжим, как обычно.} {#tickset} {5} {default}
+#action TEXT {^Незримые доспехи вокруг Вас растаяли.} {#tickset} {5} {default}
+#action TEXT {^Ощущение праведности прошло.} {#tickset} {5} {default}
+#action TEXT {^Закончив полет, Вы плавно опустились на землю.} {#tickset} {5} {default}
+#action TEXT {^%1 сказал%2 Вам: "%3"} {#woutput 0 {light green} %1 сказал%2 Вам: "%3"} {5} {default}
+#highlight {3} {^%1 сказал%2 группе: "%3"} {default}
+#group global default

@@ -1,0 +1,237 @@
+/***
+Скрипт управления базой предметов items.txt (с сайта https://rmud.bssx.ru).
+Версия 1.0.
+
+Зависимость: отсутствует.
+
+Файл items.scr необходимо скопировать в папку [JMC]\settings.
+Файл items.txt необходимо скопировать в папку [JMC]\settings.
+
+Добавить в свой конфигурационный файл JMC:
+#use {items.scr}
+
+Во всех других скриптах становится доступна база предметов items_items_dict (ключ nameUpperCase) и items_items_array со свойствами предметов: name (Название), nameUpperCase (Название в верхнем регистре), full (Вся информация), properties (Свойства), restrictions (Ограничения), effects (Влияния), spells (Эффекты).
+
+Обновлять файл items.txt (загружать актуальную версию из сети) можно командой:
+#script {items_update()}
+***/
+
+var module_items = 1; //Зависимость для других модулей
+
+var items_items_dict = {};
+var items_items_array = [];
+
+String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.split(search).join(replacement);
+};
+
+function items_download() {
+	var strResult = "";
+	
+    try {
+        var WinHttpReq = new ActiveXObject("WinHttp.WinHttpRequest.5.1");
+        var temp = WinHttpReq.Open("GET", "https://rmud.bssx.ru/items/text?hjt=1", false);
+        WinHttpReq.Send();
+        strResult = WinHttpReq.ResponseText;
+    }
+	catch (e) {
+		jmc.Showme("[ITEMS.SCR] Ошибка связи с магической библиотекой rmud.bssx.ru при скачивании items.txt.", "light red");
+		return null;
+	}
+	
+	if (strResult.search("Название:") == -1) {
+		jmc.Showme("[ITEMS.SCR] Проблема с форматом полученных данных.", "light red");
+		return null;
+	}
+	
+	strResult = strResult.replaceAll("\r\n", "\n");
+	strResult = strResult.replaceAll("\n\r", "\n");
+	strResult = strResult.replaceAll("\r", "\n");
+
+	var result = strResult.match(/^1\n([\s\S\r]*?)<end node>/gm);
+	
+	if (result.length == 0) {
+		jmc.Showme("[ITEMS.SCR] Проблема с форматом данных в файле items.txt.", "light red");
+		return null;
+	}
+	
+	return strResult;
+}
+
+function items_save(data) {
+	
+	if (data == null) return false;
+	
+	try {
+		var fso = new ActiveXObject("Scripting.FileSystemObject");
+		var file = fso.OpenTextFile("settings//items.txt", 2, true, -2);
+		file.Write(data);
+		file.Close();
+		
+		jmc.Showme("[ITEMS.SCR] Сохранена новая база предметов items.txt.");
+
+	}
+	catch (e) {
+		jmc.Showme("[ITEMS.SCR] Ошибка записи файла items.txt.", "light red");
+		return false;
+	}
+	
+	return true;
+}
+
+function items_load() {
+	try {
+		var fso = new ActiveXObject("Scripting.FileSystemObject");
+		var file = fso.OpenTextFile("settings//items.txt", 1);
+		var strResult = file.ReadAll();
+		file.Close();
+		
+		if (strResult.search("Название:") == -1) {
+			jmc.Showme("[ITEMS.SCR] Проблема с форматом данных в файле items.txt.", "light red");
+			return null;
+		}
+
+		strResult = strResult.replaceAll("\r\n", "\n");
+		strResult = strResult.replaceAll("\n\r", "\n");
+		strResult = strResult.replaceAll("\r", "\n");
+
+		var result = strResult.match(/^1\n([\s\S\r]*?)<end node>/gm);
+		
+		if (result.length == 0) {
+			jmc.Showme("[ITEMS.SCR] Проблема с форматом данных в файле items.txt.", "light red");
+			return null;
+		}
+		
+		return strResult; 
+	}
+	catch (e) {
+		jmc.Showme("[ITEMS.SCR] Ошибка загрузки файла items.txt.", "light red");
+		return null;
+	}
+	
+	return null;
+}
+
+function items_set(data) {
+	if (data == null) return;
+	
+	
+	var result = data.match(/^1\n([\s\S\r]*?)<end node>/gm);
+	
+	items_items_dict = {};
+	items_items_array = [];
+	
+	for (var i = 0; i < result.length; i++) {
+		var full = result[i].substr(2,result[i].length - 13); //Вся информация
+		var name = ""; //Название
+		var nameUpperCase = ""; //Название в верхнем регистре
+		var properties = ""; //Свойства
+		var restrictions = ""; //Ограничения
+		var effects = ""; //Влияния
+		var spells = ""; //Эффекты
+		var armor = 0;
+		
+		var strings = full.split("\n");
+		
+		for (var j = 0; j < strings.length; j++) {
+			var regex1 = new RegExp("^Название: (.+)$");
+			var m = strings[j].match(regex1);
+			if (m != null) {
+				name = m[1];
+				nameUpperCase = name.toUpperCase();
+			}
+			
+			var regex2 = new RegExp("^Свойства: (.+)$");
+			m = strings[j].match(regex2);
+			if (m != null) {
+				properties = m[1];
+			}
+
+			var regex3 = new RegExp("^Ограничения: (.+)$");
+			m = strings[j].match(regex3);
+			if (m != null) {
+				restrictions = m[1];
+			}
+
+			var regex4 = new RegExp("^Влияния: (.+)$");
+			m = strings[j].match(regex4);
+			if (m != null) {
+				effects = m[1];
+			}
+
+			var regex5 = new RegExp("^Эффекты: (.+)$");
+			m = strings[j].match(regex5);
+			if (m != null) {
+				spells = m[1];
+			}
+
+			var regex6 = new RegExp("^Качество брони: ([-0-9]+)$");
+			m = strings[j].match(regex6);
+			if (m != null) {
+				armor = parseInt(m[1]);
+			}
+			
+			/* Все возможные заголовки:
+			Название
+			Свойства
+			Ограничения
+			Влияния
+			Эффекты
+			Тип
+			Время обновления
+			Сила удара
+			Качество брони
+			Содержит заклинание
+			Количество зарядов
+			Заклинание
+			*/
+
+			//Сила удара: 5К4+1, среднее наносимое повреждение: 13.5.
+			//Можно выделить: минимальная (число), максимальная (число), средняя (число) сила удара  + вред из влияния
+			//Тип: палочка Материал: кристалл Вес: 1 Цена: 80
+			//Можно выделить: тип, материал, вес (число)
+			//Качество брони: 5
+			//Можно выделить: броня (число)
+
+		}
+		
+		if (name.length == 0) continue;
+		
+		var tmpDict = {}
+		tmpDict["name"] = name;
+		tmpDict["nameUpperCase"] = nameUpperCase;
+		tmpDict["full"] = full;
+		tmpDict["properties"] = properties;
+		tmpDict["restrictions"] = restrictions;
+		tmpDict["effects"] = effects;
+		tmpDict["spells"] = spells;
+		tmpDict["armor"] = armor;
+
+		items_items_dict[nameUpperCase] = tmpDict;
+		items_items_array.push(tmpDict);
+	}
+
+	jmc.Showme("[ITEMS.SCR] Загружена база предметов. Предметов в базе: " + items_items_array.length + ".");
+}
+
+function items_update() {
+	jmc.Showme("[ITEMS.SCR] Идёт загрузка и обновление базы предметов...");
+	var tmpData = items_download();
+	if (tmpData != null) {
+		items_save(tmpData);
+		items_set(tmpData);
+	}
+}
+
+function items_main() {
+	var tmpData = items_load();
+	if (tmpData != null) {
+		items_set(tmpData);
+	}
+}
+
+items_main();
+
+
+

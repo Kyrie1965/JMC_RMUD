@@ -1,0 +1,585 @@
+/***
+Скрипт для группировки предметов по типу у торговцев. Полезно, когда в магазине очень большой ассортимент, и нужно найти предмет определенного типа. Сначала идёт надеваемое, потом оружие, потом все остальное. Для оружия отображается, как его можно держать (основное, вспомогательное, двуручное).
+Отображения влияния или эффекта предмета в списке торговца
+Версия 1.1.
+
+Зависимость: commonlib.scr с обвязкой обработчиков, items.scr.
+
+Файл trader.scr необходимо скопировать в папку [JMC]\settings.
+
+Добавить в свой конфигурационный файл JMC:
+#use {trader.scr}
+
+У торговцев ввести команду:
+список группировка
+(можно использовать любой сокращенный вариант)
+
+В игре использовать команду "торговцы ВЛИЯНИЕ|ЭФФЕКТ" (регистр не имеет значения) для задания фильтра влияния в списках торговцев. Примеры:
+торговцы поглощение
+торговцы полет
+торговцы вред
+торговцы ловкость
+торговцы сила
+торговцы защита от зла
+торговцы сбить
+торговцы атака
+
+Если ввести команду "торговцы" без параметра, то фильтр будет сброшен.
+
+Теперь в выводе списков торговцев все вещи с заданным влиянием будут выделены светло-голубым цветом, а в квадратных скобках указана величина влияния.
+Теперь в выводе экипировки будет отображаться суммарное влияние предметов.
+***/
+
+if (typeof module_commonlib === "undefined") {
+	jmc.Showme("[TRADER.SCR] Отсутствует commonlib.scr с обвязкой обработчиков.", "light red");
+}
+
+
+var trader_dropIncoming = false;
+var trader_ProcessingList = false;
+var trader_ProcessingItem = false;
+var trader_filter = "";
+var trader_items = [];
+var trader_textBuffer = [];
+
+var trader_currentItem = 0;
+var trader_currentItem_isPrime = false;
+var trader_currentItem_isOffHand = false;
+var trader_currentItem_isTwoHanded = false;
+var trader_currentItem_isContainer = false;
+var trader_currentItem_isLight = false;
+var trader_currentItem_group = "прочее";
+var trader_currentItem_groupSort = 100;
+var trader_currentItem_weaponType = "";
+var trader_currentItem_wearableType = "";
+var trader_currentItem_name = "";
+
+jmcInputFunctions.push(function() {
+	if (trader_dropIncoming) {
+		jmc.DropEvent();
+	}
+		
+	var cmd = jmc.Event;
+
+	var result = null;
+	result = cmd.match(/(.+) +(.+)/);
+	if (result != null) {
+		if (result[1].length >1 && "список".search(result[1]) == 0 && "группировка".search(result[2]) == 0) {
+			jmc.DropEvent();
+			trader_textBuffer = [];
+			trader_dropIncoming = true;
+			trader_ProcessingList = true;
+			trader_ProcessingItem = false;
+			trader_items = [];
+			jmc.Showme("Идёт просмотр списка предметов у торговца...");
+			jmc.send("список");
+			
+			return;
+		}
+	}
+	
+	if (cmd == "торговцы") {
+		jmc.DropEvent();
+		trader_filter = "";
+		jmc.Showme("Фильтр торговцев сброшен.");
+		jmc.Parse("");
+		return;
+	}
+	
+	var regex = new RegExp("торговцы (.*)");
+	var result = cmd.match(regex);
+	if (result == null) {
+		return;
+	}
+	
+	var effect = result[1];
+	
+	if (effect.length == 0) {
+		jmc.DropEvent();
+		trader_filter = "";
+		jmc.Showme("Фильтр торговцев сброшен.");
+		jmc.Parse("");
+		return;
+	}
+	
+	jmc.DropEvent();
+	trader_filter = effect;
+	jmc.Showme("Фильтр торговцев влияния или эффекта предмета установлен на: " + effect + ".");
+	jmc.Parse("");
+	
+});
+
+jmcIncomingFunctions.push(function() {
+	if (!trader_ProcessingList && !trader_ProcessingItem && trader_filter.length == 0) return;
+	
+	var str = jmc.Event;
+	var plainStr = jmc.ToText(jmc.Event);
+	
+	var result1 = plainStr.match(/^#Соединение утеряно/);
+	var result2 = plainStr.match(/^#Вы не подключены/);
+	
+	if ((result1 != null) || (result2 != null))  {
+		trader_ProcessingList = false;
+		trader_ProcessingItem = false;
+		trader_dropIncoming = false;
+		trader_textBuffer = [];
+		trader_items = [];
+		return;
+	}
+	
+	if (trader_dropIncoming) jmc.DropEvent();
+
+	var result = null;
+	result = plainStr.match(/^([-0-9]+)ж ([-0-9]+)б ([-0-9]+)о ([-0-9]+)м/);
+	if (result != null) {
+		
+		if (trader_ProcessingList) {
+			trader_processList(trader_textBuffer);
+			trader_textBuffer = [];
+			return;
+		}
+	
+		if (trader_ProcessingItem) {
+			trader_processItem(trader_textBuffer);
+			trader_textBuffer = [];
+			return;
+		}
+				
+		return;
+	}
+	if (trader_ProcessingList || trader_ProcessingItem) {
+		result = plainStr.match(/^\[ ввод=дальше, к=конец, о=обновить, н=назад/);
+		if (result != null) {
+			jmc.send("");
+			return;
+		}
+		trader_textBuffer.push(str)
+	}
+	
+	if (trader_filter.length != 0 && !trader_dropIncoming) {
+		var regex = new RegExp("[0-9]+\\. (.+) \\(.*[0-9]+.* .+\\)");
+		var result = plainStr.match(regex);
+		if (result == null) {
+			return;
+		}
+		
+		var item = result[1];
+		var itemUC = item.toUpperCase();
+		
+		if (items_items_dict[itemUC] == null) {
+			return;
+		}
+		 
+		regex = new RegExp(trader_filter + " на ([-0-9]+)", "i");
+		result = items_items_dict[itemUC]["effects"].match(regex);
+		if (result != null) {
+			jmc.Showme(str.replace(item, "\x1B[1;36m" + item + " [" + result[1] + "]" + "\x1B[0;0m"));
+			jmc.DropEvent();
+			return;
+		}
+
+		regex = new RegExp(trader_filter);	
+		result = items_items_dict[itemUC]["spells"].match(regex);
+
+		if (result != null) {
+			jmc.Showme(str.replace(item, "\x1B[1;36m" + item + "\x1B[0;0m"));
+			jmc.DropEvent();
+		}	
+	}
+});
+
+function trader_processList(buffer) {
+	for (var i = 0; i < buffer.length; i++) {
+		var str = buffer[i];
+		var plainStr = jmc.ToText(str);
+				
+		var result = plainStr.match(/^ *([0-9]+)\. (.+) \([0-9]+ монет.*\)/);
+		if (result != null) {
+			trader_items.push({"Номер": parseInt(result[1]), "Название": result[2], "Строка": str, "Название с заглавной": result[2].charAt(0).toUpperCase() + result[2].slice(1)})
+						
+			if (trader_items.length != parseInt(result[1])) {
+				trader_ProcessingList = false;
+				trader_dropIncoming = false;
+				trader_items = [];
+				jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+				jmc.send("");
+				return;
+			}
+		}
+	}
+	
+	trader_ProcessingList = false;
+	trader_ProcessingItem = true;
+	jmc.Showme("Идёт осмотр каждого предмета у торговца...");
+	trader_currentItem = 0;
+	jmc.send("рассмотреть 1");
+}
+
+function trader_processItem(buffer) {
+	trader_currentItem_isPrime = false;
+	trader_currentItem_isOffHand = false;
+	trader_currentItem_isTwoHanded = false;
+	trader_currentItem_isContainer = false;
+	trader_currentItem_isLight = false;
+	trader_currentItem_group = "прочее";
+	trader_currentItem_groupSort = 100;
+	trader_currentItem_weaponType = "";
+	trader_currentItem_wearableType = "";
+	trader_currentItem_name = "";
+
+	for (var i = 0; i < buffer.length; i++) {
+		var str = buffer[i];
+		var plainStr = jmc.ToText(str);
+		
+		result = plainStr.match(/(.+) надева.+ (в качестве щита|на палец|на шею|вокруг шеи|на тело|на голову|на лицо|на ноги|на ступни ног|на кисти рук|на руки|вокруг тела|за спину|вокруг пояса|на запястье|в уши)/);
+		if (result != null) {
+			
+			var name = result[1];
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (trader_currentItem_name.length != 0) {
+					if (name != trader_currentItem_name) {
+						trader_ProcessingItem = false;
+						trader_dropIncoming = false;
+						trader_items = [];
+						jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+						jmc.send("");
+						return;
+					}
+				} else {
+					trader_currentItem_name = name;
+				}
+			} else {
+				trader_currentItem_name = name;
+			}
+			
+			trader_currentItem_wearableType = result[2];
+			trader_currentItem_group = result[2];
+			trader_currentItem_groupSort = 1;
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (name != trader_items[trader_currentItem]["Название с заглавной"]) {
+					trader_ProcessingItem = false;
+					trader_dropIncoming = false;
+					trader_items = [];
+					jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+					jmc.send("");
+					return;
+				}
+			}
+			
+			continue;
+		}
+
+		result = plainStr.match(/(.+) (используется|используются) в качестве источника света/);
+		if (result != null) {
+			var name = result[1];
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (trader_currentItem_name.length != 0) {
+					if (name != trader_currentItem_name) {
+						trader_ProcessingItem = false;
+						trader_dropIncoming = false;
+						trader_items = [];
+						jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+						jmc.send("");
+						return;
+					}
+				} else {
+					trader_currentItem_name = name;
+				}
+			} else {
+				trader_currentItem_name = name;
+			}
+
+			trader_currentItem_group = "в качестве источника света";
+			trader_currentItem_groupSort = 99;
+			trader_currentItem_isLight = true;
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (name != trader_items[trader_currentItem]["Название с заглавной"]) {
+					trader_ProcessingItem = false;
+					trader_dropIncoming = false;
+					trader_items = [];
+					jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+					jmc.send("");
+					return;
+				}
+			}
+			
+			continue;
+		}
+		
+		result = plainStr.match(/В (.+) можно класть другие предметы/);
+		if (result != null) {
+			trader_currentItem_group = "контейнер";
+			trader_currentItem_groupSort = 99;
+			trader_currentItem_isContainer = true;
+			continue;
+		}
+		
+		result = plainStr.match(/(.+) .+ качества\./);
+		if (result != null) {
+			
+			if (!trader_currentItem_isContainer && plainStr.search(/Что-то/) != 0) {
+				if (trader_currentItem_name.length != 0) {
+					if (plainStr.search(new RegExp(trader_currentItem_name)) != 0) {
+						trader_ProcessingItem = false;
+						trader_dropIncoming = false;
+						trader_items = [];
+						jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+						jmc.send("");
+						return;
+					}
+				}
+				
+				if (plainStr.search(new RegExp(trader_items[trader_currentItem]["Название с заглавной"])) != 0) {
+					trader_ProcessingItem = false;
+					trader_dropIncoming = false;
+					trader_items = [];
+					jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+					jmc.send("");
+					return;
+				}
+			}
+
+			continue;
+		}
+		
+		result = plainStr.match(/(.+) в .+ состоянии\./);
+		if (result != null) {
+			var name = result[1];
+			
+			if (!trader_currentItem_isContainer && plainStr.search(/Что-то/) != 0) {
+				if (trader_currentItem_name.length != 0) {
+					if (name != trader_currentItem_name) {
+						trader_ProcessingItem = false;
+						trader_dropIncoming = false;
+						trader_items = [];
+						jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+						jmc.send("");
+						return;
+					}
+				} else {
+					trader_currentItem_name = name;
+				}
+			
+				if (name != trader_items[trader_currentItem]["Название с заглавной"]) {
+					trader_ProcessingItem = false;
+					trader_dropIncoming = false;
+					trader_items = [];
+					jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+					jmc.send("");
+					return;
+				}
+			} else {
+				trader_currentItem_name = name;
+			}
+			
+			continue;
+		}
+		
+		result = plainStr.match(/Для использования .+ требуется обладать умением "(.+)"/);
+		if (result != null) {
+			trader_currentItem_weaponType = result[1];
+			trader_currentItem_group = result[1];
+			trader_currentItem_groupSort = 3;
+			continue;
+		}
+
+		result = plainStr.match(/(.+) (может|могут) использоваться в качестве основного оружия/);
+		if (result != null) {
+			var name = result[1];
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (trader_currentItem_name.length != 0) {
+					if (name != trader_currentItem_name) {
+						trader_ProcessingItem = false;
+						trader_dropIncoming = false;
+						trader_items = [];
+						jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+						jmc.send("");
+						return;
+					}
+				} else {
+					trader_currentItem_name = name;
+				}
+			} else {
+				trader_currentItem_name = name;
+			}
+			
+			trader_currentItem_isPrime = true;
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (name != trader_items[trader_currentItem]["Название с заглавной"]) {
+					trader_ProcessingItem = false;
+					trader_dropIncoming = false;
+					trader_items = [];
+					jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+					jmc.send("");
+					return;
+				}
+			}
+			
+			continue;
+		}
+
+		result = plainStr.match(/(.+) (может|могут) использоваться в качестве вспомогательного оружия/);
+		if (result != null) {
+			var name = result[1];
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (trader_currentItem_name.length != 0) {
+					if (name != trader_currentItem_name) {
+						trader_ProcessingItem = false;
+						trader_dropIncoming = false;
+						trader_items = [];
+						jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+						jmc.send("");
+						return;
+					}
+				} else {
+					trader_currentItem_name = name;
+				}
+			} else {
+				trader_currentItem_name = name;
+			}
+			
+			trader_currentItem_isOffHand = true;
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (name != trader_items[trader_currentItem]["Название с заглавной"]) {
+					trader_ProcessingItem = false;
+					trader_dropIncoming = false;
+					trader_items = [];
+					jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+					jmc.send("");
+					return;
+				}
+			}
+			
+			continue;
+		}
+
+		result = plainStr.match(/(.+) (может|могут) использоваться в качестве двуручного оружия/);
+		if (result != null) {
+			var name = result[1];
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (trader_currentItem_name.length != 0) {
+					if (name != trader_currentItem_name) {
+						trader_ProcessingItem = false;
+						trader_dropIncoming = false;
+						trader_items = [];
+						jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+						jmc.send("");
+						return;
+					}
+				} else {
+					trader_currentItem_name = name;
+				}
+			} else {
+				trader_currentItem_name = name;
+			}
+			
+			trader_currentItem_isTwoHanded = true;
+			
+			if (plainStr.search(/Что-то/) != 0) {
+				if (name != trader_items[trader_currentItem]["Название с заглавной"]) {
+					trader_ProcessingItem = false;
+					trader_dropIncoming = false;
+					trader_items = [];
+					jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+					jmc.send("");
+					return;
+				}
+			}
+			
+			continue;
+		}
+	}
+	
+	if (trader_currentItem_name.length == 0) {
+		trader_ProcessingItem = false;
+		trader_dropIncoming = false;
+		trader_items = [];
+		jmc.Showme("Во время процесса произошло изменение ассортимента. Посмотрите, пожалуйста, список заново.");
+		jmc.send("");
+		return;
+	}
+	
+	trader_items[trader_currentItem]["isPrime"] = trader_currentItem_isPrime;
+	trader_items[trader_currentItem]["isOffHand"] = trader_currentItem_isOffHand;
+	trader_items[trader_currentItem]["isTwoHanded"] = trader_currentItem_isTwoHanded;
+	trader_items[trader_currentItem]["isContainer"] = trader_currentItem_isContainer;
+	trader_items[trader_currentItem]["trader_currentItem_isLight"] = trader_currentItem_isLight;
+	trader_items[trader_currentItem]["group"] = trader_currentItem_group;
+	trader_items[trader_currentItem]["groupSort"] = trader_currentItem_groupSort;
+	trader_items[trader_currentItem]["weaponType"] = trader_currentItem_weaponType;
+	trader_items[trader_currentItem]["wearableType"] = trader_currentItem_wearableType;
+
+	if (trader_currentItem == trader_items.length - 1)
+	{
+		trader_ProcessingItem = false;
+		trader_dropIncoming = false;
+		jmc.Showme("Анализ ассортимента завершен.");
+		jmc.Showme(" ");
+		
+		trader_items.sort(function (a, b) {
+			return  a.groupSort - b.groupSort || a.group.localeCompare(b.group);
+		});
+		
+		currentGroup = "";
+		
+		for (var i = 0; i < trader_items.length; i++) {
+			if (currentGroup != trader_items[i]["group"]) {
+				jmc.showme("<" + trader_items[i]["group"] + ">:", 7);
+				currentGroup = trader_items[i]["group"];
+			}
+			
+			var tmpAr = [];
+			
+			if (trader_items[i]["isPrime"]) tmpAr.push("О")
+			if (trader_items[i]["isOffHand"]) tmpAr.push("В")
+			if (trader_items[i]["isTwoHanded"]) tmpAr.push("Д")
+			
+		
+			if (trader_filter.length != 0) {
+				var regex = new RegExp("[0-9]+\\. (.+) \\(.*[0-9]+.* .+\\)");
+				var result = trader_items[i]["Строка"].match(regex);
+				if (result != null) {
+					var item = result[1];
+					var itemUC = item.toUpperCase();
+					if (items_items_dict[itemUC] != null) {
+						regex = new RegExp(trader_filter + " на ([-0-9]+)", "i");
+						result = items_items_dict[itemUC]["effects"].match(regex);
+						
+						if (result != null) {
+							trader_items[i]["Строка"] = (trader_items[i]["Строка"]).replace(item, "\x1B[1;36m" + item + " [" + result[1] + "]" + "\x1B[0;0m");
+						}
+						
+						regex = new RegExp(trader_filter);	
+						result = items_items_dict[itemUC]["spells"].match(regex);
+
+						if (result != null) {
+							trader_items[i]["Строка"] = (trader_items[i]["Строка"]).replace(item, "\x1B[1;36m" + item + "\x1B[0;0m");
+						}	
+					}
+				}				 
+			}
+
+		
+			if (tmpAr.length > 0) {
+				jmc.showme(trader_items[i]["Строка"] + " \x1B[0;36m[" + tmpAr.join(", ") + "]\x1B[0;0m");
+			} else {
+				jmc.showme(trader_items[i]["Строка"]);
+			}
+		}
+		
+		jmc.send("");
+		return;
+	}
+
+	trader_currentItem++;
+	jmc.send("рассмотреть " + (trader_currentItem + 1));
+}

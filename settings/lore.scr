@@ -1,0 +1,130 @@
+/***
+Скрипт отображения информацию о предмете (берёт данные из файла items.txt и с сайта https://rmud.bssx.ru).
+Версия 1.1.
+
+Зависимость: items.scr (необязательно).
+
+Файл lore.scr необходимо скопировать в папку [JMC]\settings.
+
+Добавить в свой конфигурационный файл JMC:
+#use {lore.scr}
+#alias {лор} {#script lore_lore("%0")}
+
+Сначала происходит поиск по базе items.txt. Если результата нет, происходит онлайн-поиск. Можно использовать только онлайн-поиск — для этого нужно изменить переменную lore_online_only на true.
+
+В игре использовать команду "лор [ТОЧНОЕ НАЗВАНИЕ ПРЕДМЕТА]":
+лор кушак с рунной вязью
+лор звездная роба
+лор штурмовой щит командира
+лор Клинок Сновидений
+***/
+
+var lore_online_only = false;
+
+String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.split(search).join(replacement);
+};
+
+function lore_lorebyid(id) {
+	var strResult = "";
+	
+    try
+    {
+        var WinHttpReq = new ActiveXObject("WinHttp.WinHttpRequest.5.1");
+        var temp = WinHttpReq.Open("GET", "https://rmud.bssx.ru/items/" + id, false);
+        WinHttpReq.Send();
+        strResult = WinHttpReq.ResponseText;
+    }
+	catch (e)
+	{
+		jmc.Showme("[LORE.SCR] Ошибка связи с магической библиотекой rmud.bssx.ru.", "light red");
+		jmc.Parse("");
+		return;
+	}
+		
+	try {
+		var document = new ActiveXObject("htmlfile");
+		document.open();
+		document.write(strResult.replaceAll("</th>", ": </th>"));
+		document.close();
+		var elements = document.getElementsByTagName("table");
+
+		if (elements == null || elements.length == 0) {
+			jmc.Showme("[LORE.SCR] Что-то не так с форматом данных на странице вещи" + " [" + id + "] " + "на сайте rmud.bssx.ru.", "light red");
+			jmc.Parse("");
+			return;
+		}
+
+		jmc.Showme("Данные из магической библиотеки rmud.bssx.ru:", "cyan");
+		jmc.Showme(elements[0].innerText);
+		jmc.Parse("");
+	} catch (e) {
+		jmc.Showme("[LORE.SCR] Какие-то проблемы с парсингом данных.", "light red");
+		jmc.Parse("");
+		return;
+	}
+}
+
+
+function lore_lore(name) {
+	if ((typeof module_items !== "undefined") && (lore_online_only != true)) {
+		var nameUC = name.toUpperCase();
+		
+		if (items_items_dict.hasOwnProperty(nameUC)) {
+			jmc.Showme("Данные из магической библиотеки rmud.bssx.ru:", "cyan");
+			jmc.Showme(items_items_dict[nameUC]["full"]);
+			jmc.Parse("");
+		} else {
+			lore_loreonline(name);
+		}
+    } else {
+		lore_loreonline(name);
+	}
+}
+
+function lore_loreonline(name) {
+	var strResult = "";
+	
+    try
+    {
+        var WinHttpReq = new ActiveXObject("WinHttp.WinHttpRequest.5.1");
+        var temp = WinHttpReq.Open("GET", "https://rmud.bssx.ru/?q=" + encodeURIComponent(name).replaceAll("%20", "+"), false);
+        WinHttpReq.Send();
+        strResult = WinHttpReq.ResponseText;
+    }
+	catch (e)
+	{
+		jmc.Showme("[LORE.SCR] Ошибка связи с магической библиотекой rmud.bssx.ru.", "light red");
+		jmc.Parse("");
+		return;
+	}
+		
+	try {
+		var document = new ActiveXObject("htmlfile");
+		document.open();
+		document.write(strResult.replaceAll("</th>", ": </th>"));
+		document.close();
+
+		var elements = document.getElementsByTagName("table");
+		if (elements != null && elements.length > 0) {
+			jmc.Showme("Данные из магической библиотеки rmud.bssx.ru:", "cyan");
+			jmc.Showme(elements[0].innerText);
+			jmc.Parse("");
+			return;
+		}
+		
+		var regex = new RegExp("<li><a href=\"\/items\/([0-9]+)\">" + name + "<\/a>");
+		var result = strResult.match(regex);
+		if (result != null && result.length == 2) {
+			lorebyid(result[1]);
+			return;
+		}
+		
+		jmc.Showme("Простите, но в магической библиотеке rmud.bssx.ru не найдено записей об этом предмете.", "cyan");
+		jmc.Parse("");		
+	} catch (e) {
+		jmc.Showme("[LORE.SCR] Какие-то проблемы с парсингом данных.", "light red");
+		jmc.Parse("");
+	}
+}

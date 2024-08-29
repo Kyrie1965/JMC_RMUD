@@ -1,0 +1,35 @@
+/*
+Пример работы с событиями JMC.
+*/
+
+//Обработка ввода пользователя.
+jmcInputFunctions.push(function() {
+
+	//cmd — строка с командой пользователя.  
+	var cmd = jmc.Event;
+	
+	//jmc.Showme("Вы ввели: " + cmd);
+	
+	//Запретить отправку команды на сервер.
+	//jmc.DropEvent();
+});
+
+//Обработка входящих данных.
+jmcIncomingFunctions.push(function() {
+	//str — входящая строка, может содержать ansi-коды цвета.  
+	var str = jmc.Event;
+	
+	//plainStr - обесцвеченная строка.
+	var plainStr = jmc.ToText(jmc.Event);
+		
+	//Запретить вывод строки в окне.
+	//jmc.DropEvent();
+});
+
+jmcLoadFunctions.push(function() {
+	//Обработка подключения скрипта
+});
+
+jmcUnloadFunctions.push(function() {
+	//Обработка отключения скрипта
+});

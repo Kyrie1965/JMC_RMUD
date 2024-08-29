@@ -1,0 +1,85 @@
+#message uses OFF
+#multiaction on
+#multihighlight on
+#presub on
+#echo off
+#ignore off
+#speedwalk on
+#togglesubs off
+#verbat off
+#colon leave
+#comment #
+#race format %0
+#proxy {disable}
+#secure {disable}
+#codepage {windows-1251}
+#telnet {debug} {off}
+#broadcast {filterip} {on}
+#broadcast {filterport} {on}
+#broadcast {port} {9236}
+#broadcast {enable}
+#promptend {disable}
+#group local default
+#ticksize 60
+
+#use {items.scr}
+#use {statuses.scr}
+#use {trader.scr}
+#use {lore.scr}
+#use {equipment.scr}
+ 
+## --- Обработка входа в RMUD
+#action {Special thanks to Alex Kuklin for hosting our MUD!} {#cr}
+#action {^Please choose a MUD client:} {3}
+## ---
+
+## --- Предметы
+#variable {food} {хлеб}
+#variable {water} {мех}
+#variable {container} {рюкзак}
+#alias {вода} {#variable water %1}
+#alias {еда} {#variable food %1}
+#alias {тюк} {#variable container %1}
+#alias {лор} {#script lore_lore("%0")}
+## ---
+
+## --- Установка тиков
+#action {^Начался дождь.} {#tickset}
+#action {^Дождь прекратился.} {#tickset}
+#action {^Начался день.} {#tickset}
+#action {^Началась ночь.} {#tickset}
+#action {^Солнце взошло на востоке.} {#tickset}
+#action {^Солнце зашло на западе.} {#tickset}
+#action {^Окончив молитвы, %1 закрыл%2 свой молитвенник с улыбкой.} {#tickset}
+#action {^Окончив занятия, %1 закрыл%2 свою книгу заклинаний с улыбкой.} {#tickset}
+#action {^В небе начали мелькать молнии.} {#tickset}
+#action {^%1 молний прекратилось.} {#tickset}
+#action {^Облака исчезли.} {#tickset}
+#action {^Белый диск Солинари появился на небе.} {#tickset}
+#action {^Во рту у Вас пересохло.} {#tickset}
+#action {^Пришла пора подкрепиться.} {#tickset}
+#action {^Вы почувствовали себя слабее.} {#tickset}
+#action {^Вы почувствовали себя неуклюжим, как обычно.} {#tickset}
+#action {^Незримые доспехи вокруг Вас растаяли.} {#tickset}
+#action {^Ощущение праведности прошло.} {#tickset}
+#action {^Закончив полет, Вы плавно опустились на землю.} {#tickset}
+## ---
+
+## --- Вывод о окнах и подсветка
+#action {^%1 сказал%2 Вам: "%3"} {#woutput 0 {light green} %1 сказал%2 Вам: "%3"}
+#highlight {3} {^%1 сказал%2 группе: "%3"}
+## ---
+
+#hot {NUM7} {вверх}
+#hot {NUM8} {север}
+#hot {NUM4} {запад}
+#hot {NUM5} {огл}
+#hot {NUM6} {восток}
+#hot {NUM1} {вниз}
+#hot {NUM2} {юг}
+#hot {Ctrl+`} {вз все все.труп;вз все.монет}
+#hot {Ctrl+Z} {#zap}
+#hot {Ctrl+X} {#connect rmud.org 3041}
+#hot {Ctrl+A} {#connect localhost 3050}
+
+#con rmud.org 3041
